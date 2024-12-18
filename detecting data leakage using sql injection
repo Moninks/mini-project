@@ -1,0 +1,170 @@
+import sqlite3
+import random
+def initialize_databases():
+    with sqlite3.connect("admin_database.db") as admin_conn:
+        admin_cursor = admin_conn.cursor()
+        admin_cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admin_data (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL,
+            password TEXT NOT NULL,
+            sensitive_info TEXT NOT NULL
+        )
+        ''')
+        admin_cursor.executemany('''
+        INSERT INTO admin_data (username, password, sensitive_info)
+        VALUES (?, ?, ?)
+        ''', [
+            ("admin", "admin123", "Confidential Report A"),
+            ("admin", "admin123", "Sensitive Data B"),
+        ])
+        admin_conn.commit()
+
+    with sqlite3.connect("user_database.db") as user_conn:
+        user_cursor = user_conn.cursor()
+        user_cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_data (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            info TEXT
+        )
+        ''')
+        user_conn.commit()
+def log_activity(message, log_file="suspicious_activity.log"):
+    with open(log_file, "a") as file:
+        file.write(f"{message}\n")
+def random_detection():
+    if random.choice([True, False]):
+        alert = "Random Detection Alert! Potential security breach detected."
+        print(alert)
+        log_activity(alert)
+    else:
+        print("No anomalies detected during random check.")
+def authenticate(username, password):
+    if username == "admin" and password == "admin123":
+        return "admin"
+    else:
+        with sqlite3.connect("user_database.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM user_data WHERE username = ? AND password = ?",  (username, password))
+            user = cursor.fetchone()
+            if user:
+                return "user"
+    return None
+def admin_dashboard():
+    print("\n--- Admin Dashboard ---")
+    while True:
+        print("\n1. Check for Data Leakage")
+        print("2. Logout")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            random_detection()
+            username = input("Enter a username to check in admin database: ")
+            detect_data_leakage("admin_database.db", "admin_data", username)
+        elif choice == "2":
+            print("Logging out of Admin Dashboard.")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+def detect_data_leakage(database, table, user_input):
+    with sqlite3.connect(database) as conn:
+        cursor = conn.cursor()
+        try:
+            query = f"SELECT * FROM {table} WHERE username = '{user_input}'"
+            print(f"Executing query: {query}")
+            cursor.execute(query)
+            results = cursor.fetchall()
+            if "OR" in user_input.upper() or ";" in user_input or "--" in user_input or "UNION" in   user_input.upper():
+                print("SQL Injection Detected!")
+                log_activity(f"SQL Injection Detected: {query}")
+                return
+            if len(results) > 1:
+                print("Data Leakage Detected!")
+                log_activity(f"Data Leakage Detected: {query}")
+                return
+            print("No data leakage detected. File is safe.")
+        except sqlite3.Error as e:
+            print(f"SQL Error: {e}")
+            log_activity(f"SQL Error: {e}")
+def user_dashboard(username):
+    print(f"\n--- User Dashboard for {username} ---")
+    while True:
+        print("\n1. Add Data")
+        print("2. Logout")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            add_user_data(username)
+        elif choice == "2":
+            print("Logging out of User Dashboard.")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+def add_user_data(username):
+    with sqlite3.connect("user_database.db") as conn:
+        cursor = conn.cursor()
+        info = input("Enter the information to store: ")
+        try:
+            cursor.execute('''
+            UPDATE user_data SET info = ? WHERE username = ?
+            ''', (info, username))
+ conn.commit()
+            print("Data added successfully.")
+        except sqlite3.Error as e:
+            print(f"Error adding data: {e}")
+def check_if_username_exists(username):
+    with sqlite3.connect("user_database.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM user_data WHERE username = ?", (username,))
+        user = cursor.fetchone()
+        if user:
+            return True
+    return False
+def register_new_user():
+    print("\n--- Register New User ---")
+    username = input("Enter a new username: ")
+    password = input("Enter a new password: ")
+    if check_if_username_exists(username):
+        print("Error: Username already exists. Please try a different one.")
+        return
+    with sqlite3.connect("user_database.db") as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO user_data (username, password) VALUES (?, ?)", (username, password))
+            conn.commit()
+            print("New user registered successfully.")
+        except sqlite3.IntegrityError:
+            print("Error: Username already exists (caught by UNIQUE constraint). Please try a different one.")
+        except sqlite3.Error as e:
+            print(f"Error: {e}")
+def main():
+    initialize_databases()
+    print("Databases initialized.")
+    while True:
+        print("\n--- Main Menu ---")
+        print("1. Login")
+        print("2. Register New User")
+        print("3. Exit")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            user_type = authenticate(username, password)
+            if user_type == "admin":
+                print("Admin authenticated successfully.")
+                admin_dashboard()
+            elif user_type == "user":
+                print(f"User authenticated successfully. Welcome, {username}.")
+                user_dashboard(username)
+            else:
+                print("Authentication failed. Invalid credentials.")
+        elif choice == "2":
+            register_new_user()
+        elif choice == "3":
+            print("Exiting program.")
+            break
+           else:
+ print("Invalid choice. Please try again.")
+if __name__ == "__main__":
+    main()
+
